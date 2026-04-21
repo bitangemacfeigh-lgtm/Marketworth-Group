@@ -1,0 +1,1 @@
+-e "---\ntitle: Welcome to Marketworth\ndate: 2026-04-21\n---\n\nSovereign Intelligence is active." 
