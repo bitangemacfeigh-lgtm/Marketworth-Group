@@ -3,8 +3,15 @@ import os
 import time
 import csv
 import requests
-from mistralai.client import MistralClient as Mistral
 from flask_flatpages import FlatPages
+
+# --- STABLE MISTRAL IMPORT ---
+try:
+    from mistralai.client import MistralClient
+    Mistral = MistralClient
+except ImportError:
+    from mistralai import Mistral
+# -----------------------------
 
 app = Flask(__name__)
 
