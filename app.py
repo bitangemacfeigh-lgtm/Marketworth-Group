@@ -47,7 +47,7 @@ if MISTRAL_API_KEY:
 COMPANY_DATA = {
     'name': 'The Marketworth Group',
     'whatsapp': '254796423133', 
-    'email': 'intelligence@marketworth.ai'
+    'email': 'macfeighbitange1@gmail.com'
 }
 
 # --- INTELLIGENCE UTILITIES ---
