@@ -1,0 +1,16 @@
+{% extends "base.html" %} {% block content %}
+<section class="portfolio-section">
+    <h1>Our Proven Intelligence Nodes</h1>
+    <p>Architecting the future of sovereign systems.</p>
+    
+    <div class="project-grid">
+        {% for project in projects %}
+        <div class="project-card">
+            <h3>{{ project.name }}</h3>
+            <p>{{ project.desc }}</p>
+            <span class="tech-stack">Stack: {{ project.tech }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
