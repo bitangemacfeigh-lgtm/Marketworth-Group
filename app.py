@@ -3,7 +3,7 @@ import os
 import time
 import csv
 import requests
-from mistralai import Mistral
+from mistralai.client import MistralClient as Mistral
 from flask_flatpages import FlatPages
 
 app = Flask(__name__)
@@ -24,7 +24,7 @@ mistral_client = Mistral(api_key=MISTRAL_API_KEY) if MISTRAL_API_KEY else None
 # Global Company Data
 COMPANY_DATA = {
     'name': 'The Marketworth Group',
-    'whatsapp': '254700000000', 
+    'whatsapp': '254796423133', 
     'email': 'intelligence@marketworth.ai'
 }
 
