@@ -5,13 +5,19 @@ import csv
 import requests
 from flask_flatpages import FlatPages
 
-# --- STABLE MISTRAL IMPORT ---
+# --- TRIPLE-LAYER MISTRAL IMPORT STRATEGY ---
+# This ensures the app boots even if Render has cached an old/broken library version
 try:
-    from mistralai.client import MistralClient
-    Mistral = MistralClient
-except ImportError:
     from mistralai import Mistral
-# -----------------------------
+except (ImportError, AttributeError):
+    try:
+        from mistralai.client import MistralClient as Mistral
+    except (ImportError, AttributeError):
+        # Fallback dummy class to prevent total crash
+        class Mistral:
+            def __init__(self, *args, **kwargs): self.chat = self.Dummy()
+            class Dummy: 
+                def complete(self, *args, **kwargs): pass
 
 app = Flask(__name__)
 
@@ -21,12 +27,21 @@ app.config['FLATPAGES_AUTO_RELOAD'] = True
 app.config['FLATPAGES_EXTENSION'] = '.md'
 app.config['FLATPAGES_ROOT'] = 'pages'
 
-# Initialize FlatPages AFTER config is set
+# Create pages directory locally if it doesn't exist to prevent FlatPages crash
+if not os.path.exists('pages'):
+    os.makedirs('pages')
+
+# Initialize FlatPages
 pages = FlatPages(app)
 
 # Mistral Configuration
-MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "QiJh8V2kZ3IQL1eYCAnKqJSOJxSHbTyC")
-mistral_client = Mistral(api_key=MISTRAL_API_KEY) if MISTRAL_API_KEY else None
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY")
+mistral_client = None
+if MISTRAL_API_KEY:
+    try:
+        mistral_client = Mistral(api_key=MISTRAL_API_KEY)
+    except Exception as e:
+        print(f"MISTRAL_INIT_ERROR: {e}")
 
 # Global Company Data
 COMPANY_DATA = {
@@ -38,7 +53,7 @@ COMPANY_DATA = {
 # --- INTELLIGENCE UTILITIES ---
 
 def log_lead(identifier, status_or_score):
-    """Logs lead data to CSV."""
+    """Logs lead data to CSV with error handling for read-only filesystems."""
     csv_file = 'leads.csv'
     file_exists = os.path.isfile(csv_file)
     try:
@@ -48,10 +63,10 @@ def log_lead(identifier, status_or_score):
                 writer.writerow(['Timestamp', 'Identifier', 'Data/Score'])
             writer.writerow([time.strftime("%Y-%m-%d %H:%M:%S"), identifier, status_or_score])
     except Exception as e:
-        print(f"LOG_ERROR: {e}")
+        print(f"LOG_ERROR: {e} (Likely read-only environment)")
 
 def analyze_site_intelligence(target_url):
-    """Crawls the site for JSON-LD and uses Mistral for reasoning."""
+    """Crawls site for JSON-LD and uses Mistral for reasoning."""
     try:
         header = {'User-Agent': 'MarketworthAI-Bot/1.0'}
         response = requests.get(target_url, timeout=5, headers=header)
@@ -60,13 +75,23 @@ def analyze_site_intelligence(target_url):
         has_schema = 'application/ld+json' in html
         score = 82 if has_schema else 45
         
+        # Use mistral_client safely (handles both v1 and v2 SDK styles)
         if mistral_client:
             prompt = f"Website: {target_url}. JSON-LD Schema Found: {has_schema}. Provide a 1-sentence expert AEO recommendation."
-            chat_response = mistral_client.chat.complete(
-                model="mistral-tiny",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            advice = chat_response.choices[0].message.content
+            try:
+                # Try modern SDK method
+                chat_response = mistral_client.chat.complete(
+                    model="mistral-tiny",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                advice = chat_response.choices[0].message.content
+            except AttributeError:
+                # Fallback for legacy SDK method
+                chat_response = mistral_client.chat(
+                    model="mistral-tiny",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                advice = chat_response.choices[0].message.content
         else:
             advice = "Missing AI-readable schema detected. Implement JSON-LD to improve LLM citation probability."
             
@@ -90,14 +115,12 @@ def services():
 
 @app.route('/blog')
 def blog(): 
-    """Displays all valid blog posts, skipping files with YAML syntax errors."""
     valid_posts = []
     for page in pages:
         try:
-            _ = page.meta.get('title')
-            valid_posts.append(page)
-        except Exception as e:
-            print(f"ARCHITECT_LOG: Skipping corrupted file '{page.path}' | Error: {e}")
+            if page.meta.get('title'):
+                valid_posts.append(page)
+        except Exception:
             continue
 
     posts = sorted(valid_posts, key=lambda p: str(p.meta.get('date', '0000-00-00')), reverse=True)
@@ -112,28 +135,24 @@ def post(path):
 def resources():
     return render_template('resources.html', info=COMPANY_DATA)
 
-# --- ACADEMY ROUTING ENGINE (The Update) ---
+# --- ACADEMY ROUTING ENGINE ---
 
 @app.route('/academy/')
 @app.route('/academy/<path:path>')
 def academy(path=None):
-    """
-    Handles internal navigation for the Sovereign Academy.
-    Supports folder-based index files and direct lesson paths.
-    """
-    # Base directory for academy files
     academy_dir = os.path.join(app.root_path, 'academy')
     
-    # 1. Handle root /academy/ request
+    # Create directory if missing
+    if not os.path.exists(academy_dir):
+        os.makedirs(academy_dir)
+    
     if path is None or path == "":
         return send_from_directory(academy_dir, 'index.html')
     
-    # 2. Check if the path is a directory (e.g., /academy/agentic-swarms/)
     full_path = os.path.join(academy_dir, path)
     if os.path.isdir(full_path):
         return send_from_directory(full_path, 'index.html')
     
-    # 3. Serve specific files (e.g., lesson-1.html)
     return send_from_directory(academy_dir, path)
 
 # --- OPERATIONAL ANALYSIS & LEAD CAPTURE ---
@@ -157,8 +176,8 @@ def subscribe():
     email = request.form.get('lead_email')
     if email:
         log_lead(email, "MAGNET_DOWNLOAD_REQ")
+        # Ensure this file exists in your static/ folder
         return redirect(url_for('static', filename='AI_Readiness_2026.pdf'))
-    
     return redirect(url_for('blog'))
 
 @app.route('/tools/results')
@@ -185,7 +204,6 @@ def results():
 
 @app.errorhandler(404)
 def page_not_found(e): 
-    # Try academy fallback before redirecting to home
     return redirect(url_for('home'))
 
 if __name__ == '__main__':
