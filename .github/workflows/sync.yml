@@ -1,0 +1,21 @@
+name: Sync to Hugging Face Hub
+
+on:
+  push:
+    branches: [main] # Triggers when you push to the main branch
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          
+      - name: Push to Hugging Face
+        uses: huggingface/hub-sync@v0.1.0
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: Bitange/Marketworth
+          hf_token: ${{ secrets.HF_TOKEN }}
+          repo_type: space
